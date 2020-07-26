@@ -6,6 +6,8 @@
 #include <chrono>
 #include <string>
 #include "kdtree.h"
+#include <eigen3/Eigen/Dense>
+#include<math.h>
 
 // Arguments:
 // window is the region to draw box around
@@ -75,12 +77,37 @@ void render2DTree(Node* node, pcl::visualization::PCLVisualizer::Ptr& viewer, Bo
 
 }
 
+void proximity(int index, const std::vector<std::vector<float>>& points, std::vector<int>& cluster, std::vector<bool>& processed, KdTree* tree, float distanceTol) {
+	processed[index] = true;
+	cluster.push_back(index);
+	std::vector<int> nearest = tree->search(points[index], distanceTol);
+
+	for (int idx : nearest ) {
+		if (!processed[idx]) {
+			proximity(idx, points, cluster, processed, tree, distanceTol);
+		}
+	}
+	
+}
+
+
+
 std::vector<std::vector<int>> euclideanCluster(const std::vector<std::vector<float>>& points, KdTree* tree, float distanceTol)
 {
 
 	// TODO: Fill out this function to return list of indices for each cluster
-
 	std::vector<std::vector<int>> clusters;
+	std::vector<bool>processed(points.size(), false);
+	
+	for (int i = 0; i<points.size(); i++) {
+		if (processed[i]) {
+			continue;
+		}
+		std::vector<int>cluster;
+		proximity(i, points, cluster, processed, tree, distanceTol);
+		clusters.push_back(cluster);
+		
+	}
  
 	return clusters;
 
@@ -113,7 +140,7 @@ int main ()
   	render2DTree(tree->root,viewer,window, it);
   
   	std::cout << "Test Search" << std::endl;
-  	std::vector<int> nearby = tree->search({-6,7},3.0);
+  	std::vector<int> nearby = tree->search({-6, 7},3.0);
   	for(int index : nearby)
       std::cout << index << ",";
   	std::cout << std::endl;
@@ -124,14 +151,15 @@ int main ()
   	std::vector<std::vector<int>> clusters = euclideanCluster(points, tree, 3.0);
   	//
   	auto endTime = std::chrono::steady_clock::now();
-  	auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-  	std::cout << "clustering found " << clusters.size() << " and took " << elapsedTime.count() << " milliseconds" << std::endl;
+  	auto elapsedTime = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
+  	std::cout << "clustering found " << clusters.size() << " and took " << elapsedTime.count() << " microseconds" << std::endl;
 
   	// Render clusters
   	int clusterId = 0;
 	std::vector<Color> colors = {Color(1,0,0), Color(0,1,0), Color(0,0,1)};
   	for(std::vector<int> cluster : clusters)
-  	{
+  	{	
+		std::cout<<"cluster id: "<<clusterId<<std::endl;
   		pcl::PointCloud<pcl::PointXYZ>::Ptr clusterCloud(new pcl::PointCloud<pcl::PointXYZ>());
   		for(int indice: cluster)
   			clusterCloud->points.push_back(pcl::PointXYZ(points[indice][0],points[indice][1],0));
